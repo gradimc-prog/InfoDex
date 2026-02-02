@@ -1788,6 +1788,22 @@ function deleteDex(dexId) {
         const streak = computeStreakDaysFromDaySet(days);
 
         const topDexes = stats.perDex.slice(0, 6);
+        const renderTopDex = (d) => {
+            const lvl = levelFromXP(d.xp);
+            const { pct } = levelProgress(d.xp);
+            return React.createElement("div", { key: d.id, className: "logItem" },
+                React.createElement("div", { className: "smallRow" },
+                    React.createElement("div", null,
+                        React.createElement("b", null, d.name),
+                        React.createElement("div", { className: "smallNote" }, d.type, " • ", lvl, " • ", d.entries, " entries • ", d.hours, " hrs")
+                    ),
+                    React.createElement("div", { className: "pill" }, d.xp, " pts")
+                ),
+                React.createElement("div", { className: "progressWrap" },
+                    React.createElement("div", { className: "progressBar", style: { width: `${Math.round(pct * 100)}%` } })
+                )
+            );
+        };
 
         const fmtDay = (key) => {
             // key is YYYY-MM-DD
@@ -1819,22 +1835,7 @@ function deleteDex(dexId) {
             React.createElement("div", { className: "card" },
                 React.createElement("b", null, "Top Indexes"),
                 topDexes.length === 0 ? React.createElement("div", { className: "smallNote" }, "Create an Index to see breakdowns.") :
-                topDexes.map(d => {
-                    const lvl = levelFromXP(d.xp);
-                    const { pct } = levelProgress(d.xp);
-                    return React.createElement("div", { key: d.id, className: "logItem" },
-                        React.createElement("div", { className: "smallRow" },
-                            React.createElement("div", null,
-                                React.createElement("b", null, d.name),
-                                React.createElement("div", { className: "smallNote" }, d.type, " • ", lvl, " • ", d.entries, " entries • ", d.hours, " hrs")
-                            ),
-                            React.createElement("div", { className: "pill" }, d.xp, " pts")
-                        ),
-                        React.createElement("div", { className: "progressWrap" },
-                            React.createElement("div", { className: "progressBar", style: { width: `${Math.round(pct * 100)}%` } })
-                        )
-                    );
-                })
+                topDexes.map(renderTopDex)
             ),
 
             React.createElement("div", { className: "card" },
