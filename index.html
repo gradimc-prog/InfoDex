@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>LifeDex</title>
+<title>InfoDex</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:,">
 
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -99,10 +100,10 @@ textarea{resize:vertical; min-height:90px}
   background:rgba(255,255,255,.04)
 }
 
-.skill { background: linear-gradient(90deg,#16a34a33,#22c55e22); }
-.career { background: linear-gradient(90deg,#2563eb33,#38bdf822); }
-.trait { background: linear-gradient(90deg,#7c3aed33,#a78bfa22); }
-.hobby { background: linear-gradient(90deg,#ea580c33,#fb923c22); }
+.task { background: linear-gradient(90deg,#16a34a33,#22c55e22); }
+.hours { background: linear-gradient(90deg,#2563eb33,#38bdf822); }
+.note { background: linear-gradient(90deg,#7c3aed33,#a78bfa22); }
+.reference { background: linear-gradient(90deg,#ea580c33,#fb923c22); }
 
 .smallNote{font-size:12px;color:#9ca3af;margin-top:8px}
 hr.sep{border:none;border-top:1px solid rgba(255,255,255,.08); margin:12px 0}
@@ -255,7 +256,7 @@ hr.sep{border:none;border-top:1px solid rgba(255,255,255,.08); margin:12px 0}
 <script>
 // @ts-nocheck
 // ==== File Storage Engine (IndexedDB) ====
-const DB_NAME = "LifeDexFiles";
+const DB_NAME = "InfoDexFiles";
 const DB_STORE = "files";
 function openFileDB(){
   return new Promise((res, rej)=>{
@@ -319,8 +320,8 @@ const XP_STEP = 100;
 const MAX_HISTORY = 30;
 const MAX_TIMELINE = 300;
 // --- HARDENING PASS (versioned storage) ---
-const STORAGE_KEY = "lifedex_v2";
-const SCHEMA_VERSION = 3;
+const STORAGE_KEY = "infodex_v1";
+const SCHEMA_VERSION = 4;
 const DEV = false;
 // --- Sound scaffold (disabled for now; ready later) ---
 const Sound = {
@@ -338,7 +339,7 @@ function safeUUID() {
 }
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 function assertSoft(cond, msg) { if (!cond && DEV)
-    console.warn("[LifeDex]", msg); }
+    console.warn("[InfoDex]", msg); }
 function safeNumber(n, fallback = 0) {
     const v = Number(n);
     return Number.isFinite(v) ? v : fallback;
@@ -348,26 +349,29 @@ function safeString(s, fallback = "") {
         return fallback;
     return String(s);
 }
-function validDexType(t) { return ["Skill", "Career", "Trait", "Hobby"].includes(t); }
+function validDexType(t) { return ["Task", "Hours", "Note", "Reference"].includes(t); }
 function validEntryType(t) { return safeString(t || "note", "note"); }
+function labelEntryType(t) {
+    const s = safeString(t || "note", "note");
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Note";
+}
 function dexTypeColor(type) {
     switch (type) {
-        case "Skill": return "#22c55e";
-        case "Career": return "#38bdf8";
-        case "Trait": return "#a78bfa";
-        case "Hobby": return "#fb923c";
+        case "Task": return "#22c55e";
+        case "Hours": return "#38bdf8";
+        case "Note": return "#a78bfa";
+        case "Reference": return "#fb923c";
         default: return "#fbbf24";
     }
 }
 
 // --- Semantic XP (keyword rules; deterministic) ---
 const KEYWORD_XP = [
-  { words: ["study","learn","practice","read","research","course","training"], xp: 3 },
-  { words: ["build","create","code","design","write","draw","ship","deploy"], xp: 5 },
-  { words: ["exercise","gym","run","lift","train","workout","cardio"], xp: 4 },
-  { words: ["job","work","project","client","deadline","career","resume","portfolio"], xp: 5 },
-  { words: ["help","volunteer","teach","mentor","coach","support"], xp: 4 },
-  { words: ["meditate","focus","discipline","routine","plan","organize"], xp: 3 },
+  { words: ["task","todo","fix","ship","deliver","complete","close"], xp: 3 },
+  { words: ["hours","time","billable","meeting","session","worklog"], xp: 2 },
+  { words: ["note","summary","outline","draft","decision","context"], xp: 3 },
+  { words: ["reference","standard","api","spec","guide","pattern"], xp: 4 },
+  { words: ["code","design","review","debug","deploy"], xp: 4 },
 ];
 function analyzeTextXP(text){
   const t = safeString(text,"").toLowerCase();
@@ -406,21 +410,21 @@ function sanitizeAttachments(list){
 // --- Achievements (derived; no persistence needed) ---
 const ACHIEVEMENTS = [
   // Milestones
-  { id:"first_dex", group:"Milestone", title:"First Dex", desc:"Create your first Dex.", target:1,
+  { id:"first_dex", group:"Milestone", title:"First Index", desc:"Create your first Index.", target:1,
     progress:s => (s?.dexes||[]).length },
 
-  { id:"xp_1000", group:"Milestone", title:"1,000 Total XP", desc:"Reach 1,000 total XP across all Dexes.", target:1000,
+  { id:"xp_1000", group:"Milestone", title:"1,000 Total Points", desc:"Reach 1,000 total points across all Indexes.", target:1000,
     progress:s => totalXPFromDexes(s?.dexes||[]) },
 
-  { id:"level_master", group:"Milestone", title:"Mastery", desc:"Reach Master in any Dex.", target:1,
+  { id:"level_master", group:"Milestone", title:"Mastery", desc:"Reach Master in any Index.", target:1,
     progress:s => (s?.dexes||[]).some(d => levelIndexFromXP(d?.xp) >= (LEVELS.length-1)) ? 1 : 0 },
 
   // Habits
-  { id:"journal_10", group:"Habits", title:"Journal Habit", desc:"Write 10 journal entries.", target:10,
-    progress:s => (s?.timeline||[]).filter(t => t?.entryType==="journal").length },
+  { id:"notes_10", group:"Habits", title:"Notes Habit", desc:"Write 10 detailed notes.", target:10,
+    progress:s => (s?.timeline||[]).filter(t => t?.entryType==="note").length },
 
-  { id:"capture_25", group:"Habits", title:"Moment Collector", desc:"Capture 25 moments.", target:25,
-    progress:s => (s?.timeline||[]).filter(t => t?.entryType==="capture").length },
+  { id:"tasks_25", group:"Habits", title:"Task Tracker", desc:"Log 25 tasks.", target:25,
+    progress:s => (s?.timeline||[]).filter(t => t?.entryType==="task").length },
 
   { id:"streak_7", group:"Habits", title:"7-Day Streak", desc:"Be active 7 days in a row.", target:7,
     progress:s => computeStreakDaysFromDaySet(daySetFromTimeline(s?.timeline||[])) },
@@ -429,14 +433,8 @@ const ACHIEVEMENTS = [
   { id:"active_14", group:"Consistency", title:"Two Weeks Active", desc:"Record activity on 14 different days.", target:14,
     progress:s => daySetFromTimeline(s?.timeline||[]).size },
 
-  { id:"timeline_100", group:"Consistency", title:"100 Moments", desc:"Reach 100 timeline items (any type).", target:100,
+  { id:"timeline_100", group:"Consistency", title:"100 Records", desc:"Reach 100 timeline items (any type).", target:100,
     progress:s => (s?.timeline||[]).length },
-  // Career
-  { id:"milestone_1", group:"Career", title:"First Milestone", desc:"Complete your first career milestone.", target:1,
-    progress:s => (s?.timeline||[]).filter(t => t?.entryType==="milestone").length },
-
-  { id:"milestone_10", group:"Career", title:"10 Milestones", desc:"Complete 10 career milestones.", target:10,
-    progress:s => (s?.timeline||[]).filter(t => t?.entryType==="milestone").length },
 ];
 // --- Career Progression Trees (Presets + Helpers) ---
 const CAREER_PRESETS = [
@@ -577,10 +575,12 @@ function computeStatsFromState(s){
 
   const totalXP = totalXPFromDexes(dexes);
   const dexCount = dexes.length;
+  const totalHours = timeline.reduce((sum, t) => sum + Math.max(0, safeNumber(t?.hours, 0)), 0);
 
-  const journalCount = timeline.filter(t => t?.entryType === "journal").length;
-  const captureCount = timeline.filter(t => t?.entryType === "capture").length;
-  const milestoneCount = timeline.filter(t => t?.entryType === "milestone").length;
+  const taskCount = timeline.filter(t => t?.entryType === "task").length;
+  const noteCount = timeline.filter(t => t?.entryType === "note").length;
+  const hoursCount = timeline.filter(t => t?.entryType === "hours").length;
+  const referenceCount = timeline.filter(t => t?.entryType === "reference").length;
   const timelineCount = timeline.length;
 
   const daySet = daySetFromTimeline(timeline);
@@ -595,9 +595,12 @@ function computeStatsFromState(s){
       type: d.type,
       xp: safeNumber(d.xp, 0),
       entries: 0,
-      journal: 0,
-      capture: 0,
+      tasks: 0,
+      notes: 0,
+      hoursEntries: 0,
+      references: 0,
       netXP: 0,
+      hours: 0,
       lastTs: 0
     });
   }
@@ -605,9 +608,12 @@ function computeStatsFromState(s){
     if (!t || !t.dexId || !perDex.has(t.dexId)) continue;
     const row = perDex.get(t.dexId);
     row.entries += 1;
-    if (t.entryType === "journal") row.journal += 1;
-    if (t.entryType === "capture") row.capture += 1;
+    if (t.entryType === "task") row.tasks += 1;
+    if (t.entryType === "note") row.notes += 1;
+    if (t.entryType === "hours") row.hoursEntries += 1;
+    if (t.entryType === "reference") row.references += 1;
     row.netXP += safeNumber(t.xp, 0);
+    row.hours += Math.max(0, safeNumber(t.hours, 0));
     row.lastTs = Math.max(row.lastTs, safeNumber(t.ts, 0));
   }
   const perDexList = Array.from(perDex.values()).sort((a,b)=> (b.xp - a.xp) || (b.entries - a.entries));
@@ -624,7 +630,7 @@ function computeStatsFromState(s){
   }
 
   return {
-    totalXP, dexCount, timelineCount, journalCount, captureCount, milestoneCount, activeDays,
+    totalXP, dexCount, timelineCount, taskCount, noteCount, hoursCount, referenceCount, activeDays, totalHours,
     perDex: perDexList,
     last14: counts,
     maxDayCount: Math.max(1, ...counts.map(x=>x.c))
@@ -635,10 +641,10 @@ function defaultSeed() {
     return {
         version: SCHEMA_VERSION,
         dexes: [
-            { id: safeUUID(), name: "LifeDoc", type: "Skill", xp: 95, log: [] },
-            { id: safeUUID(), name: "BlueCollar Trades", type: "Career", xp: 20, log: [] },
-            { id: safeUUID(), name: "Reliability", type: "Trait", xp: 40, log: [] },
-            { id: safeUUID(), name: "Artistry", type: "Hobby", xp: 5, log: [] }
+            { id: safeUUID(), name: "Today Tasks", type: "Task", xp: 20, log: [] },
+            { id: safeUUID(), name: "Client Hours", type: "Hours", xp: 10, log: [] },
+            { id: safeUUID(), name: "Project Notes", type: "Note", xp: 35, log: [] },
+            { id: safeUUID(), name: "Coding Standards", type: "Reference", xp: 15, log: [] }
         ],
         timeline: []
     };
@@ -656,7 +662,7 @@ function repairState(raw) {
             id = safeUUID();
         seen.add(id);
         const name = safeString(d === null || d === void 0 ? void 0 : d.name, "Untitled").trim() || "Untitled";
-        const type = validDexType(d === null || d === void 0 ? void 0 : d.type) ? d.type : "Skill";
+        const type = validDexType(d === null || d === void 0 ? void 0 : d.type) ? d.type : "Task";
         const xp = Math.max(0, safeNumber(d === null || d === void 0 ? void 0 : d.xp, 0));
         const log = Array.isArray(d === null || d === void 0 ? void 0 : d.log) ? d.log : [];
         const fixedLog = log.map(e => ({
@@ -664,6 +670,7 @@ function repairState(raw) {
             xp: safeNumber(e?.xp, 0),
             semanticXP: clamp(safeNumber(e?.semanticXP, 0), 0, 25),
             entryType: validEntryType((e?.entryType) || (e?.type) || "note"),
+            hours: Math.max(0, safeNumber(e?.hours, 0)),
             attachments: sanitizeAttachments(e?.attachments),
             verification: { status: safeString(e?.verification?.status, "unverified") },
             ts: safeNumber(e?.ts, Date.now())
@@ -676,10 +683,11 @@ function repairState(raw) {
         return ({
             dexId: (_a = t?.dexId) ?? null,
             dex: safeString(t?.dex, ""),
-            dexType: validDexType(t?.dexType) ? t.dexType : "Skill",
+            dexType: validDexType(t?.dexType) ? t.dexType : "Task",
             entryType: validEntryType((t?.entryType) || (t?.kind) || "note"),
             xp: safeNumber(t?.xp, 0),
             semanticXP: clamp(safeNumber(t?.semanticXP, 0), 0, 25),
+            hours: Math.max(0, safeNumber(t?.hours, 0)),
             attachments: sanitizeAttachments(t?.attachments),
             verification: { status: safeString(t?.verification?.status, "unverified") },
             text: safeString(t?.text, "").trim(),
@@ -714,7 +722,7 @@ function loadState() {
     }
     catch (e) {
         if (DEV)
-            console.warn("[LifeDex] Failed to load state:", e);
+            console.warn("[InfoDex] Failed to load state:", e);
         return null;
     }
 }
@@ -758,7 +766,7 @@ function saveState(payload) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
             return true;
         } catch (e2) {
-            if (DEV) console.warn("[LifeDex] Save failed:", e2);
+            if (DEV) console.warn("[InfoDex] Save failed:", e2);
             return false;
         }
     } finally {
@@ -783,6 +791,22 @@ function scheduleSave(payload) {
 function downloadJSON(filename, obj) {
     try {
         const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+    catch (e) {
+        alert("Export failed.");
+    }
+}
+function downloadText(filename, content, type = "text/plain") {
+    try {
+        const blob = new Blob([content], { type });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -897,7 +921,7 @@ function ToastLayer({ toasts }) {
 function XPFloat({ delta, color, nonce }) {
     return (React.createElement("div", { key: nonce, className: "xpFloat", style: { color } },
         delta > 0 ? `+${delta}` : `${delta}`,
-        " XP"));
+        " pts"));
 }
 function App() {
     
@@ -909,12 +933,17 @@ function App() {
 const [screen, setScreen] = React.useState("home"); // home|details|journal|timeline|dexForm|stats
     const [active, setActive] = React.useState(null);
     const [filter, setFilter] = React.useState("All");
+    const [search, setSearch] = React.useState("");
     const [journal, setJournal] = React.useState("");
+    const [quickType, setQuickType] = React.useState("task");
+    const [quickHours, setQuickHours] = React.useState("");
+    const [noteType, setNoteType] = React.useState("note");
+    const [noteHours, setNoteHours] = React.useState("");
     // Dex form state
     const [formMode, setFormMode] = React.useState("create"); // create|edit
     const [formId, setFormId] = React.useState(null);
     const [formName, setFormName] = React.useState("");
-    const [formType, setFormType] = React.useState("Skill");
+    const [formType, setFormType] = React.useState("Task");
     // Import control
     const importRef = React.useRef(null);
     // ---- Phase 1 FX state (NOT persisted) ----
@@ -1028,21 +1057,48 @@ function triggerXpFx(dexId, delta, dexType) {
         });
     }
 
+    async function compressImageToDataUrl(file){
+        const raw = await fileToDataUrl(file);
+        return await new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+                const maxDim = 1280;
+                const scale = Math.min(1, maxDim / Math.max(img.width || 1, img.height || 1));
+                const w = Math.max(1, Math.round((img.width || 1) * scale));
+                const h = Math.max(1, Math.round((img.height || 1) * scale));
+                const canvas = document.createElement("canvas");
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                if (ctx) ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL("image/jpeg", 0.72));
+            };
+            img.onerror = () => resolve(raw);
+            img.src = raw;
+        });
+    }
+
     async function prepareAttachment(file, setFn){
         if (!file) { setFn(null); return; }
         const name = safeString(file.name,"").slice(0,120) || "Attachment";
         const type = safeString(file.type,"");
         const size = safeNumber(file.size,0);
-        if (size && size > MAX_EMBED_BYTES){
-            // Too large: store metadata only (still useful for recall / later verification)
-            setFn({ name, type, size, dataUrl:"" });
-            pushToast("Attachment saved as metadata (file too large to embed).");
-            return;
-        }
         try{
-            const dataUrl = await fileToDataUrl(file);
+            let dataUrl = "";
+            if (isImageMime(type)) {
+                dataUrl = await compressImageToDataUrl(file);
+            } else if (size && size <= MAX_EMBED_BYTES) {
+                dataUrl = await fileToDataUrl(file);
+            }
+
+            if (!dataUrl || dataUrl.length > 1_200_000) {
+                setFn({ name, type, size, dataUrl: "" });
+                pushToast("Attachment saved as metadata (file too large to embed).");
+                return;
+            }
+
             setFn({ name, type, size, dataUrl });
-            pushToast("Attachment ready.");
+            pushToast(isImageMime(type) ? "Attachment compressed and ready." : "Attachment ready.");
         }catch(e){
             setFn(null);
             pushToast("Attachment failed to load.");
@@ -1105,7 +1161,7 @@ function triggerXpFx(dexId, delta, dexType) {
                 // Milestone toasts
                 const milestones = [100, 250, 500, 1000, 2000, 5000, 10000];
                 for (const ms of milestones) {
-                    if (prevTotalRef.current < ms && total >= ms) pushToast(`Milestone: ${ms} total XP`);
+                    if (prevTotalRef.current < ms && total >= ms) pushToast(`Milestone: ${ms} total pts`);
                 }
                 prevTotalRef.current = total;
             }
@@ -1219,7 +1275,7 @@ function commit(mutator) {
         });
     }
 // ---- Core actions ----
-    function addXP(dexId, amt, text = "", entryType = "xp", meta = {}) {
+    function addXP(dexId, amt, text = "", entryType = "note", meta = {}) {
         const dNow = state.dexes.find(x => x.id === dexId);
         if (dNow) {
             const before = safeNumber(dNow.xp, 0);
@@ -1249,6 +1305,7 @@ function commit(mutator) {
                     xp: delta,
                     semanticXP: (text && safeString(text).trim().length) ? clamp(analyzeTextXP(text), 0, 25) : 0,
                     entryType: validEntryType(entryType),
+                    hours: Math.max(0, safeNumber(meta?.hours, 0)),
                     attachments: sanitizeAttachments(meta?.attachments),
                     verification: { status: safeString(meta?.verification?.status, "unverified") },
                     ts: Date.now()
@@ -1262,6 +1319,7 @@ function commit(mutator) {
                     entryType: entry.entryType,
                     xp: entry.xp,
                     semanticXP: entry.semanticXP,
+                    hours: entry.hours,
                     attachments: entry.attachments,
                     verification: entry.verification,
                     text: entry.text,
@@ -1360,7 +1418,7 @@ function deleteDex(dexId) {
         setFormMode("create");
         setFormId(null);
         setFormName("");
-        setFormType("Skill");
+        setFormType("Task");
         setScreen("dexForm");
         Sound.play("open");
     }
@@ -1374,7 +1432,7 @@ function deleteDex(dexId) {
     }
     function saveDex() {
         const name = safeString(formName).trim();
-        const type = validDexType(formType) ? formType : "Skill";
+        const type = validDexType(formType) ? formType : "Task";
         if (!name)
             return;
         commit(draft => {
@@ -1396,8 +1454,104 @@ function deleteDex(dexId) {
     function exportSave() {
         const payload = repairState({ version: state.version || SCHEMA_VERSION, dexes: state.dexes, timeline: state.timeline });
         payload.version = SCHEMA_VERSION;
-        downloadJSON("lifedex-save.json", payload);
+        downloadJSON("infodex-save.json", payload);
         Sound.play("export");
+    }
+    function buildExportText() {
+        const lines = [];
+        lines.push("# InfoDex Export");
+        lines.push(`Generated: ${new Date().toLocaleString()}`);
+        lines.push("");
+        lines.push("## Indexes");
+        for (const d of state.dexes) {
+            lines.push(`- ${d.name} (${d.type}) — ${safeNumber(d.xp, 0)} pts`);
+        }
+        lines.push("");
+        lines.push("## Timeline");
+        for (const t of state.timeline) {
+            const stamp = new Date(safeNumber(t.ts, 0)).toLocaleString();
+            const hours = safeNumber(t.hours, 0) > 0 ? ` • ${safeNumber(t.hours, 0)} hrs` : "";
+            lines.push(`- [${stamp}] ${safeString(t.dex, "Index")} • ${safeString(t.entryType, "note")}${hours} • ${safeNumber(t.xp, 0)} pts`);
+            if (t.text) lines.push(`  ${safeString(t.text, "")}`);
+            if (t.attachments && t.attachments.length) {
+                lines.push(`  Attachments: ${t.attachments.map(a => safeString(a.name, "Attachment")).join(", ")}`);
+            }
+        }
+        return lines.join("\n");
+    }
+    function buildExportHtml() {
+        const rows = state.timeline.map(t => {
+            const stamp = new Date(safeNumber(t.ts, 0)).toLocaleString();
+            const hours = safeNumber(t.hours, 0) > 0 ? `${safeNumber(t.hours, 0)} hrs` : "";
+            return [
+                "<tr>",
+                `<td>${stamp}</td>`,
+                `<td>${safeString(t.dex, "Index")}</td>`,
+                `<td>${safeString(t.entryType, "note")}</td>`,
+                `<td>${hours}</td>`,
+                `<td>${safeNumber(t.xp, 0)} pts</td>`,
+                `<td>${safeString(t.text, "")}</td>`,
+                "</tr>"
+            ].join("");
+        }).join("");
+        const indexLines = state.dexes.map(d => (
+            `<li>${safeString(d.name, "Index")} (${safeString(d.type, "")}) — ${safeNumber(d.xp, 0)} pts</li>`
+        )).join("");
+        return [
+            "<!DOCTYPE html>",
+            "<html>",
+            "<head>",
+            '  <meta charset="UTF-8" />',
+            "  <title>InfoDex Export</title>",
+            "  <style>",
+            "    body { font-family: system-ui, -apple-system, sans-serif; padding: 24px; color: #111827; }",
+            "    h1 { margin-bottom: 4px; }",
+            "    table { width: 100%; border-collapse: collapse; margin-top: 16px; }",
+            "    th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 12px; vertical-align: top; }",
+            "    th { background: #f3f4f6; text-align: left; }",
+            "    .meta { color: #6b7280; font-size: 12px; }",
+            "  </style>",
+            "</head>",
+            "<body>",
+            "  <h1>InfoDex Export</h1>",
+            `  <div class=\"meta\">Generated: ${new Date().toLocaleString()}</div>`,
+            "  <h2>Indexes</h2>",
+            `  <ul>${indexLines}</ul>`,
+            "  <h2>Timeline</h2>",
+            "  <table>",
+            "    <thead>",
+            "      <tr>",
+            "        <th>Time</th>",
+            "        <th>Index</th>",
+            "        <th>Type</th>",
+            "        <th>Hours</th>",
+            "        <th>Points</th>",
+            "        <th>Details</th>",
+            "      </tr>",
+            "    </thead>",
+            `    <tbody>${rows || ""}</tbody>`,
+            "  </table>",
+            "</body>",
+            "</html>"
+        ].join("\n");
+    }
+    function exportNote() {
+        const content = buildExportText();
+        downloadText("infodex-notes.md", content, "text/markdown");
+        Sound.play("export");
+    }
+    function exportPdf() {
+        const html = buildExportHtml();
+        const w = window.open("", "_blank");
+        if (!w) {
+            alert("Popup blocked. Allow popups to export PDF.");
+            return;
+        }
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        w.print();
     }
     async function importSaveFromFile(file) {
         try {
@@ -1416,7 +1570,7 @@ function deleteDex(dexId) {
             Sound.play("import");
         }
         catch (e) {
-            alert("Import failed. Make sure it's a valid lifedex-save.json file.");
+            alert("Import failed. Make sure it's a valid infodex-save.json file.");
         }
     }
     // ------------------- SCREENS -------------------
@@ -1425,18 +1579,18 @@ function deleteDex(dexId) {
             React.createElement(ToastLayer, { toasts: toasts }),
             React.createElement("button", { className: "back", onClick: () => setScreen("home") }, "Back"),
             React.createElement("div", { className: "card" },
-                React.createElement("h2", null, formMode === "create" ? "Create Dex" : "Edit Dex"),
-                React.createElement("div", { className: "muted" }, "XP is preserved when editing."),
-                React.createElement("input", { value: formName, onChange: e => setFormName(e.target.value), placeholder: "Dex name (e.g., Gym, Coding, Cooking)" }),
+                React.createElement("h2", null, formMode === "create" ? "Create Index" : "Edit Index"),
+                React.createElement("div", { className: "muted" }, "Points are preserved when editing."),
+                React.createElement("input", { value: formName, onChange: e => setFormName(e.target.value), placeholder: "Index name (e.g., Sprint Tasks, Client Hours, API Notes)" }),
                 React.createElement("select", { value: formType, onChange: e => setFormType(e.target.value) },
-                    React.createElement("option", null, "Skill"),
-                    React.createElement("option", null, "Career"),
-                    React.createElement("option", null, "Trait"),
-                    React.createElement("option", null, "Hobby")),
+                    React.createElement("option", null, "Task"),
+                    React.createElement("option", null, "Hours"),
+                    React.createElement("option", null, "Note"),
+                    React.createElement("option", null, "Reference")),
                 React.createElement("div", { className: "row", style: { marginTop: 10 } },
                     React.createElement("button", { className: "btn", onClick: saveDex }, "Save"),
                     React.createElement("button", { className: "btn2", onClick: () => setScreen("home") }, "Cancel")),
-                React.createElement("div", { className: "smallNote" }, "Tip: Choose the type so Timeline filters work properly."))));
+                React.createElement("div", { className: "smallNote" }, "Tip: Pick the type to keep filtering and recall fast."))));
     }
     if (screen === "details") {
         const d = state.dexes.find(x => x.id === active);
@@ -1459,29 +1613,35 @@ function deleteDex(dexId) {
                         lvl,
                         " \u2022 ",
                         d.xp,
-                        " XP"),
-                    React.createElement("div", { className: "smallNote" }, nextInfo.done ? "Max level reached" : `${nextInfo.remaining} XP to ${nextInfo.next}`),
+                        " pts"),
+                    React.createElement("div", { className: "smallNote" }, nextInfo.done ? "Max level reached" : `${nextInfo.remaining} pts to ${nextInfo.next}`),
                     React.createElement("div", { className: "bar" },
                         React.createElement("div", { className: fillClass, style: { width: pct + "%" } })),
                     showXp && React.createElement(XPFloat, { delta: xpFx.delta, color: xpFx.color, nonce: xpFx.nonce })),
                 React.createElement("div", { className: "row" },
-                    React.createElement("button", { className: "btn", onClick: () => addXP(d.id, 10) }, "+10 XP"),
-                    React.createElement("button", { className: "btn2", onClick: () => addXP(d.id, -5) }, "-5 XP"),
+                    React.createElement("button", { className: "btn", onClick: () => addXP(d.id, 10, "", quickType) }, "+10 pts"),
+                    React.createElement("button", { className: "btn2", onClick: () => addXP(d.id, -5, "", quickType) }, "-5 pts"),
                     React.createElement("button", { className: "btn2", onClick: undo }, "Undo"),
                     React.createElement("button", { className: "btn2", onClick: () => { setFilter("All"); setScreen("timeline"); } }, "Timeline")),
-                ((d.type === "Career") ? React.createElement("button", { className: "btn2", onClick: () => setScreen("careerTree") }, "Career Tree") : null),
-                ((d.type === "Career") ? React.createElement("button", { className: "btn2", onClick: () => setScreen("milestones") }, "Milestones") : null),
-                React.createElement("div", { className: "smallNote" }, "Capture and Journal entries add XP and appear in Timeline.")),
+                React.createElement("div", { className: "smallNote" }, "Quick logs and detailed notes add points and appear in the Timeline.")),
             React.createElement("div", { className: `card ${pulseFx.capture ? "savePulse" : ""}`, key: pulseFx.capture ? ("cap_" + pulseFx.capture) : "cap" },
-                React.createElement("b", null, "Capture moment"),
-                React.createElement("textarea", { placeholder: "Type and press Enter to save...", onKeyDown: (e) => {
+                React.createElement("b", null, "Quick log"),
+                React.createElement("div", { className: "row", style: { marginTop: 8 } },
+                    React.createElement("select", { className: "input", value: quickType, onChange: e => setQuickType(e.target.value) },
+                        React.createElement("option", { value: "task" }, "Task"),
+                        React.createElement("option", { value: "hours" }, "Hours"),
+                        React.createElement("option", { value: "note" }, "Note"),
+                        React.createElement("option", { value: "reference" }, "Reference")),
+                    React.createElement("input", { className: "input", type: "number", min: 0, step: "0.25", value: quickHours, onChange: e => setQuickHours(e.target.value), placeholder: "Hours (optional)" })),
+                React.createElement("textarea", { placeholder: "Type and press Enter to save a quick log...", onKeyDown: (e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
                             const val = e.currentTarget.value;
                             if (val.trim()) {
-                                addXP(d.id, 5, val, "capture", { attachments: captureAttach ? [captureAttach] : [] });
+                                addXP(d.id, 5, val, quickType, { attachments: captureAttach ? [captureAttach] : [], hours: quickHours });
                                 e.currentTarget.value = "";
                                 setCaptureAttach(null);
+                                setQuickHours("");
                                 triggerPulse("capture");
                             }
                         }
@@ -1500,20 +1660,21 @@ function deleteDex(dexId) {
                         React.createElement("span", { className: "muted" }, captureAttach.dataUrl ? "" : "(metadata)")
                     )
                 ),
-                React.createElement("div", { className: "smallNote" }, "Enter saves. Shift+Enter makes a new line.")),
+                React.createElement("div", { className: "smallNote" }, "Images are compressed for space. Enter saves. Shift+Enter makes a new line.")),
             React.createElement("div", { className: "card row" },
-                React.createElement("button", { className: "btn2", onClick: () => openEditDex(d) }, "Edit Dex"),
+                React.createElement("button", { className: "btn2", onClick: () => openEditDex(d) }, "Edit Index"),
                 React.createElement("button", { className: "btnDanger", onClick: () => resetDex(d.id) }, "Reset"),
                 React.createElement("button", { className: "btnDanger", onClick: () => deleteDex(d.id) }, "Delete")),
             React.createElement("div", { className: "card" },
                 React.createElement("b", null, "Entries"),
                 (d.log || []).length === 0 && React.createElement("div", { className: "smallNote" }, "No entries yet."),
                 (d.log || []).slice().reverse().map((l, i) => (React.createElement("div", { key: i, className: "logItem" },
-                    React.createElement("b", null, l.entryType),
+                    React.createElement("b", null, labelEntryType(l.entryType)),
                     " ",
                     l.xp >= 0 ? `+${l.xp}` : l.xp,
-                    " XP",
-                    l.semanticXP > 0 && React.createElement("div", { className: "smallNote" }, `+${l.semanticXP} semantic XP`),
+                    " pts",
+                    l.hours > 0 && React.createElement("div", { className: "smallNote" }, `${l.hours} hrs logged`),
+                    l.semanticXP > 0 && React.createElement("div", { className: "smallNote" }, `+${l.semanticXP} semantic pts`),
                     (l.attachments && l.attachments.length > 0) && React.createElement("div", { className: "attachRow" },
                         l.attachments.map((a, ai) => React.createElement("a", { key: ai, className: "attachBadge", href: a.dataUrl || undefined, target: a.dataUrl ? "_blank" : undefined, rel: a.dataUrl ? "noreferrer" : undefined, title: a.dataUrl ? "Open attachment" : "Metadata only" },
                             (isImageMime(a.type) && a.dataUrl) ? React.createElement("img", { className: "attachThumb", src: a.dataUrl, alt: a.name }) : null,
@@ -1533,9 +1694,16 @@ function deleteDex(dexId) {
                 React.createElement("div", { className: `banner ${d.type.toLowerCase()}` },
                     React.createElement("h2", null, d.name),
                     React.createElement("div", { className: "muted" },
-                        "Journal \u2022 ",
+                        "Detailed note \u2022 ",
                         d.type)),
-                React.createElement("textarea", { value: journal, onChange: e => setJournal(e.target.value), placeholder: "Write your journal entry..." }),
+                React.createElement("div", { className: "row", style: { marginTop: 8 } },
+                    React.createElement("select", { className: "input", value: noteType, onChange: e => setNoteType(e.target.value) },
+                        React.createElement("option", { value: "task" }, "Task"),
+                        React.createElement("option", { value: "hours" }, "Hours"),
+                        React.createElement("option", { value: "note" }, "Note"),
+                        React.createElement("option", { value: "reference" }, "Reference")),
+                    React.createElement("input", { className: "input", type: "number", min: 0, step: "0.25", value: noteHours, onChange: e => setNoteHours(e.target.value), placeholder: "Hours (optional)" })),
+                React.createElement("textarea", { value: journal, onChange: e => setJournal(e.target.value), placeholder: "Write your detailed note..." }),
 
                 React.createElement("div", { className: "attachRow" },
                     React.createElement("input", { key: "jr_in_" + attachNonce, type: "file", accept: "image/*,application/pdf,.pdf,.doc,.docx,.txt", onChange: async (e) => {
@@ -1555,42 +1723,50 @@ function deleteDex(dexId) {
                     React.createElement("button", { className: "btn", onClick: () => {
                             if (!journal.trim())
                                 return;
-                            addXP(d.id, 5, journal, "journal", { attachments: journalAttach ? [journalAttach] : [] });
+                            addXP(d.id, 5, journal, noteType, { attachments: journalAttach ? [journalAttach] : [], hours: noteHours });
                             setJournal("");
                             setJournalAttach(null);
+                            setNoteHours("");
                             setFilter("All");
                             setScreen("timeline");
                             triggerPulse("journal");
-                        } }, "Save Journal (+5 XP)"),
+                        } }, "Save Note (+5 pts)"),
                     React.createElement("button", { className: "btn2", onClick: undo }, "Undo")),
-                React.createElement("div", { className: "smallNote" }, "Journal saves to Timeline under the correct Dex type.")),
+                React.createElement("div", { className: "smallNote" }, "Notes save to Timeline under the correct Index type. Images are compressed for space.")),
             React.createElement("div", { className: `card ${pulseFx.journal ? "savePulse" : ""}`, key: pulseFx.journal ? ("jr_" + pulseFx.journal) : "jr" },
                 React.createElement("b", null, "Saved feedback"),
-                React.createElement("div", { className: "smallNote" }, "When you save a journal entry, this card pulses to confirm it worked."))));
+                React.createElement("div", { className: "smallNote" }, "When you save a note, this card pulses to confirm it worked."))));
     }
     if (screen === "timeline") {
-        const items = state.timeline.filter(t => filter === "All" || t.dexType === filter);
+        const items = state.timeline.filter(t => {
+            const matchesType = filter === "All" || t.dexType === filter;
+            const haystack = `${safeString(t?.dex, "")} ${safeString(t?.text, "")}`.toLowerCase();
+            const matchesSearch = !search.trim() || haystack.includes(search.trim().toLowerCase());
+            return matchesType && matchesSearch;
+        });
         return (React.createElement(React.Fragment, null,
-            React.createElement("div", { className: "pillRow" }, ["All", "Skill", "Career", "Trait", "Hobby"].map(t => (React.createElement("div", { key: t, className: `pill ${filter === t ? "active" : ""}`, onClick: () => setFilter(t) }, t)))),
+            React.createElement("div", { className: "pillRow" }, ["All", "Task", "Hours", "Note", "Reference"].map(t => (React.createElement("div", { key: t, className: `pill ${filter === t ? "active" : ""}`, onClick: () => setFilter(t) }, t)))),
             React.createElement("button", { className: "back", onClick: () => setScreen("home") }, "Back"),
             React.createElement("div", { className: "card" },
                 React.createElement("div", { className: "row", style: { justifyContent: "space-between" } },
                     React.createElement("b", null, "Timeline"),
                     React.createElement("button", { className: "btn2", onClick: undo }, "Undo")),
-                React.createElement("div", { className: "smallNote" }, "Filter is by Dex type (Skill/Career/Trait/Hobby).")),
+                React.createElement("div", { className: "smallNote" }, "Filter is by Index type (Task/Hours/Note/Reference)."),
+                React.createElement("input", { className: "input", value: search, onChange: e => setSearch(e.target.value), placeholder: "Search tasks, hours, notes, or references..." })),
             items.length === 0 && (React.createElement("div", { className: "card" },
                 React.createElement("b", null, "No entries yet."),
-                React.createElement("div", { className: "smallNote" }, "Add a Capture or Journal entry to populate Timeline."))),
-            items.map((t, i) => (React.createElement("div", { key: i, className: `card ${String(t.dexType || "Skill").toLowerCase()}` },
+                React.createElement("div", { className: "smallNote" }, "Add a quick log or detailed note to populate Timeline."))),
+            items.map((t, i) => (React.createElement("div", { key: i, className: `card ${String(t.dexType || "Task").toLowerCase()}` },
                 React.createElement("b", null, t.dex),
                 " \u2022 ",
                 t.dexType,
                 " \u2022 ",
-                t.entryType,
+                labelEntryType(t.entryType),
                 " \u2022 ",
                 t.xp >= 0 ? `+${t.xp}` : t.xp,
-                " XP",
-                t.semanticXP > 0 && React.createElement("div", { className: "smallNote" }, `+${t.semanticXP} semantic XP`),
+                " pts",
+                t.hours > 0 && React.createElement("div", { className: "smallNote" }, `${t.hours} hrs logged`),
+                t.semanticXP > 0 && React.createElement("div", { className: "smallNote" }, `+${t.semanticXP} semantic pts`),
                 (t.attachments && t.attachments.length > 0) && React.createElement("div", { className: "attachRow" },
                     t.attachments.map((a, ai) => React.createElement("a", { key: ai, className: "attachBadge", href: a.dataUrl || undefined, target: a.dataUrl ? "_blank" : undefined, rel: a.dataUrl ? "noreferrer" : undefined, title: a.dataUrl ? "Open attachment" : "Metadata only" },
                         (isImageMime(a.type) && a.dataUrl) ? React.createElement("img", { className: "attachThumb", src: a.dataUrl, alt: a.name }) : null,
@@ -1613,6 +1789,22 @@ function deleteDex(dexId) {
         const streak = computeStreakDaysFromDaySet(days);
 
         const topDexes = stats.perDex.slice(0, 6);
+        const renderTopDex = (d) => {
+            const lvl = levelFromXP(d.xp);
+            const { pct } = levelProgress(d.xp);
+            return React.createElement("div", { key: d.id, className: "logItem" },
+                React.createElement("div", { className: "smallRow" },
+                    React.createElement("div", null,
+                        React.createElement("b", null, d.name),
+                        React.createElement("div", { className: "smallNote" }, d.type, " • ", lvl, " • ", d.entries, " entries • ", d.hours, " hrs")
+                    ),
+                    React.createElement("div", { className: "pill" }, d.xp, " pts")
+                ),
+                React.createElement("div", { className: "progressWrap" },
+                    React.createElement("div", { className: "progressBar", style: { width: `${Math.round(pct * 100)}%` } })
+                )
+            );
+        };
 
         const fmtDay = (key) => {
             // key is YYYY-MM-DD
@@ -1626,14 +1818,15 @@ function deleteDex(dexId) {
 
             React.createElement("div", { className: "card" },
                 React.createElement("h2", null, "Stats"),
-                React.createElement("div", { className: "muted" }, "Overview across all Dexes."),
+                React.createElement("div", { className: "muted" }, "Overview across all Indexes."),
                 React.createElement("div", { className: "statsGrid" },
-                    React.createElement("div", { className: "logItem" }, "Total XP: ", React.createElement("b", null, stats.totalXP)),
-                    React.createElement("div", { className: "logItem" }, "Dexes: ", React.createElement("b", null, stats.dexCount)),
+                    React.createElement("div", { className: "logItem" }, "Total points: ", React.createElement("b", null, stats.totalXP)),
+                    React.createElement("div", { className: "logItem" }, "Indexes: ", React.createElement("b", null, stats.dexCount)),
                     React.createElement("div", { className: "logItem" }, "Timeline items: ", React.createElement("b", null, stats.timelineCount)),
-                    React.createElement("div", { className: "logItem" }, "Journal entries: ", React.createElement("b", null, stats.journalCount)),
-                    React.createElement("div", { className: "logItem" }, "Captures: ", React.createElement("b", null, stats.captureCount)),
-                    React.createElement("div", { className: "logItem" }, "Milestones: ", React.createElement("b", null, stats.milestoneCount)),
+                    React.createElement("div", { className: "logItem" }, "Notes: ", React.createElement("b", null, stats.noteCount)),
+                    React.createElement("div", { className: "logItem" }, "Tasks: ", React.createElement("b", null, stats.taskCount)),
+                    React.createElement("div", { className: "logItem" }, "References: ", React.createElement("b", null, stats.referenceCount)),
+                    React.createElement("div", { className: "logItem" }, "Hours logged: ", React.createElement("b", null, stats.totalHours)),
                     React.createElement("div", { className: "logItem" }, "Active days: ", React.createElement("b", null, stats.activeDays)),
                     React.createElement("div", { className: "logItem" }, "Streak: ", React.createElement("b", null, streak), " day", streak === 1 ? "" : "s"),
                     React.createElement("div", { className: "logItem" }, "Achievements: ", React.createElement("b", null, unlockedCount), "/", totalA)
@@ -1641,24 +1834,9 @@ function deleteDex(dexId) {
             ),
 
             React.createElement("div", { className: "card" },
-                React.createElement("b", null, "Top Dexes"),
-                topDexes.length === 0 ? React.createElement("div", { className: "smallNote" }, "Create a Dex to see breakdowns.") :
-                topDexes.map(d => {
-                    const lvl = levelFromXP(d.xp);
-                    const { pct } = levelProgress(d.xp);
-                    return React.createElement("div", { key: d.id, className: "logItem" },
-                        React.createElement("div", { className: "smallRow" },
-                            React.createElement("div", null,
-                                React.createElement("b", null, d.name),
-                                React.createElement("div", { className: "smallNote" }, d.type, " • ", lvl, " • ", d.entries, " entries")
-                            ),
-                            React.createElement("div", { className: "pill" }, d.xp, " XP")
-                        ),
-                        React.createElement("div", { className: "progressWrap" },
-                            React.createElement("div", { className: "progressBar", style: { width: `${Math.round(pct * 100)}%` } })
-                        )
-                    );
-                })
+                React.createElement("b", null, "Top Indexes"),
+                topDexes.length === 0 ? React.createElement("div", { className: "smallNote" }, "Create an Index to see breakdowns.") :
+                topDexes.map(renderTopDex)
             ),
 
             React.createElement("div", { className: "card" },
@@ -1694,8 +1872,8 @@ function deleteDex(dexId) {
             ),
 
             React.createElement("div", { className: "card" },
-                React.createElement("b", null, "Semantic XP"),
-                React.createElement("div", { className: "smallNote" }, "Journal/Capture text is scanned for keywords and can award bonus XP (capped). Edit KEYWORD_XP to tune it.")
+                React.createElement("b", null, "Semantic Points"),
+                React.createElement("div", { className: "smallNote" }, "Quick logs and notes are scanned for keywords and can award bonus points (capped). Edit KEYWORD_XP to tune it.")
             )
         ));
     }
@@ -1707,8 +1885,8 @@ function deleteDex(dexId) {
             return React.createElement(React.Fragment, null,
                 React.createElement("button", { className: "back", onClick: () => setScreen("home") }, "Back"),
                 React.createElement("div", { className: "card" },
-                    React.createElement("b", null, "No active Dex"),
-                    React.createElement("div", { className: "smallNote" }, "Select a Career Dex first.")
+                    React.createElement("b", null, "No active Index"),
+                    React.createElement("div", { className: "smallNote" }, "Select a Reference Index first.")
                 )
             );
         }
@@ -1747,7 +1925,7 @@ function deleteDex(dexId) {
                 draft.timeline = [addMilestoneTimeline(dexId, "Milestone: " + nn.title, reward), ...draft.timeline];
             });
 
-            pushToast("✅ Completed: " + nodeNow.title + (reward ? ` (+${reward} XP)` : ""));
+            pushToast("✅ Completed: " + nodeNow.title + (reward ? ` (+${reward} pts)` : ""));
         };
 
         return React.createElement(React.Fragment, null,
@@ -1767,7 +1945,7 @@ function deleteDex(dexId) {
 
             (tree.nodes.length === 0) && React.createElement("div", { className: "card" },
                 React.createElement("b", null, "Choose a preset"),
-                React.createElement("div", { className: "smallNote" }, "Pick a roadmap preset for this Career Dex."),
+                React.createElement("div", { className: "smallNote" }, "Pick a roadmap preset for this Reference Index."),
                 React.createElement("select", {
                     className: "input",
                     value: careerPresetId,
@@ -1790,7 +1968,7 @@ function deleteDex(dexId) {
 
             (tree.nodes.length > 0) && React.createElement("div", { className: "card" },
                 React.createElement("b", null, "Milestones"),
-                React.createElement("div", { className: "smallNote" }, "Complete unlocked milestones to earn XP. Use Undo if you make a mistake."),
+                React.createElement("div", { className: "smallNote" }, "Complete unlocked milestones to earn points. Use Undo if you make a mistake."),
                 groupNames.map(g => React.createElement("div", { key: g, style: { marginTop: 10 } },
                     React.createElement("div", { className: "pill" }, g),
                     groups[g].map(n => {
@@ -1800,7 +1978,7 @@ function deleteDex(dexId) {
                         return React.createElement("div", { key: n.id, className: "logItem", style: { opacity: done ? 1 : (unlocked ? 0.95 : 0.65) } },
                             React.createElement("div", { className: "smallRow" },
                                 React.createElement("b", null, n.title),
-                                React.createElement("div", { className: "pill" }, safeNumber(n.xp, 0), " XP")
+                                React.createElement("div", { className: "pill" }, safeNumber(n.xp, 0), " pts")
                             ),
                             n.desc ? React.createElement("div", { className: "smallNote" }, n.desc) : null,
                             React.createElement("div", { className: "smallRow", style: { marginTop: 6 } },
@@ -1878,7 +2056,7 @@ function deleteDex(dexId) {
                             React.createElement("b",null,n.title),
                             " — ",
                             label,
-                            " (",safeNumber(n.xp,0)," XP)"
+                            " (",safeNumber(n.xp,0)," pts)"
                         );
                     })
                 ))
@@ -1899,31 +2077,33 @@ function deleteDex(dexId) {
     const streakDays = computeStreakDaysFromDaySet(_days);
 
     return (React.createElement(React.Fragment, null,
-        React.createElement("h1", null, "LifeDex"),
+        React.createElement("h1", null, "InfoDex"),
         React.createElement("div", { className: "todayLine" },
-            React.createElement("div", { className: "muted" }, "Your life, indexed."),
+            React.createElement("div", { className: "muted" }, "Your knowledge, indexed."),
             React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
-                React.createElement("div", { className: "todayPill", title: "Net XP earned today (based on timeline timestamps + in-session XP changes)" },
+                React.createElement("div", { className: "todayPill", title: "Net points earned today (based on timeline timestamps + in-session changes)" },
                     "Today: ",
                     React.createElement("b", { style: { color: todayXP >= 0 ? "#22c55e" : "#fb7185" } },
                         todayLabel,
-                        " XP")),
-                React.createElement("div", { className: "streakPill", title: "Consecutive days with activity (timeline + in-session XP today)" },
+                        " pts")),
+                React.createElement("div", { className: "streakPill", title: "Consecutive days with activity (timeline + in-session points today)" },
                     "Streak: ",
                     React.createElement("b", null, streakDays),
                     " day",
                     streakDays === 1 ? "" : "s"))),
         React.createElement("div", { className: "card row" },
-            React.createElement("button", { className: "btn", onClick: openCreateDex }, "+ New Dex"),
+            React.createElement("button", { className: "btn", onClick: openCreateDex }, "+ New Index"),
             React.createElement("button", { className: "btn2", onClick: () => { setFilter("All"); setScreen("timeline"); } }, "Timeline"),
             React.createElement("button", { className: "btn2", onClick: () => setScreen("stats") }, "Stats"),
             React.createElement("button", { className: "btn2", onClick: undo }, "Undo"),
             React.createElement("button", { className: "btnDanger", onClick: resetAll }, "Reset All")),
         React.createElement("div", { className: "card" },
             React.createElement("b", null, "Data"),
-            React.createElement("div", { className: "muted" }, "Export a backup file or import one to restore/transfer your LifeDex."),
+            React.createElement("div", { className: "muted" }, "Export a backup file or import one to restore/transfer your InfoDex."),
             React.createElement("div", { className: "row", style: { marginTop: 10 } },
                 React.createElement("button", { className: "btn2", onClick: exportSave }, "Export Save"),
+                React.createElement("button", { className: "btn2", onClick: exportNote }, "Export Note"),
+                React.createElement("button", { className: "btn2", onClick: exportPdf }, "Export PDF"),
                 React.createElement("button", { className: "btn2", onClick: () => { var _a; return (_a = importRef.current) === null || _a === void 0 ? void 0 : _a.click(); } }, "Import Save"),
                 React.createElement("input", { ref: importRef, type: "file", accept: "application/json", style: { display: "none" }, onChange: async (e) => {
                         var _a;
@@ -1934,9 +2114,14 @@ function deleteDex(dexId) {
                         await importSaveFromFile(file);
                     } })),
             React.createElement("div", { className: "smallNote" }, "Tip: Export before big changes so you can restore instantly.")),
+        React.createElement("div", { className: "card" },
+            React.createElement("b", null, "Quick Recall"),
+            React.createElement("div", { className: "muted" }, "Search across tasks, hours, notes, and references."),
+            React.createElement("input", { className: "input", value: search, onChange: e => setSearch(e.target.value), placeholder: "Search your knowledge..." }),
+            React.createElement("button", { className: "btn2", style: { marginTop: 10 }, onClick: () => { setFilter("All"); setScreen("timeline"); } }, "Search Timeline")),
 state.dexes.length === 0 && React.createElement("div", { className: "card" },
-    React.createElement("b", null, "No Dexes yet."),
-    React.createElement("div", { className: "smallNote" }, "Create your first Dex to begin.")
+    React.createElement("b", null, "No Indexes yet."),
+    React.createElement("div", { className: "smallNote" }, "Create your first Index to begin.")
 ),
 
 
@@ -1954,8 +2139,8 @@ state.dexes.map(d => {
                         lvl,
                         " \u2022 ",
                         d.xp,
-                        " XP"),
-                    React.createElement("div", { className: "smallNote" }, nextInfo.done ? "Max level reached" : `${nextInfo.remaining} XP to ${nextInfo.next}`),
+                        " pts"),
+                    React.createElement("div", { className: "smallNote" }, nextInfo.done ? "Max level reached" : `${nextInfo.remaining} pts to ${nextInfo.next}`),
                     React.createElement("div", { className: "bar" },
                         React.createElement("div", { className: "fill", style: { width: pct + "%" } }))),
                 React.createElement("div", { className: "row" },
@@ -1968,8 +2153,8 @@ state.dexes.map(d => {
                             clearRecent(d.id);
                             setActive(d.id);
                             setScreen("journal");
-                        } }, "Journal"),
-                    React.createElement("button", { className: "btn2", onClick: () => openEditDex(d) }, "Edit"),
+                        } }, "Note"),
+                    React.createElement("button", { className: "btn2", onClick: () => openEditDex(d) }, "Edit Index"),
                     React.createElement("button", { className: "btn2", onClick: () => { setFilter("All"); setScreen("timeline"); } }, "Timeline"))));
         })));
 }
