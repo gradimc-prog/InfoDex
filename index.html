@@ -1483,56 +1483,57 @@ function deleteDex(dexId) {
         const rows = state.timeline.map(t => {
             const stamp = new Date(safeNumber(t.ts, 0)).toLocaleString();
             const hours = safeNumber(t.hours, 0) > 0 ? `${safeNumber(t.hours, 0)} hrs` : "";
-            return `
-                <tr>
-                    <td>${stamp}</td>
-                    <td>${safeString(t.dex, "Index")}</td>
-                    <td>${safeString(t.entryType, "note")}</td>
-                    <td>${hours}</td>
-                    <td>${safeNumber(t.xp, 0)} pts</td>
-                    <td>${safeString(t.text, "")}</td>
-                </tr>`;
+            return [
+                "<tr>",
+                `<td>${stamp}</td>`,
+                `<td>${safeString(t.dex, "Index")}</td>`,
+                `<td>${safeString(t.entryType, "note")}</td>`,
+                `<td>${hours}</td>`,
+                `<td>${safeNumber(t.xp, 0)} pts</td>`,
+                `<td>${safeString(t.text, "")}</td>`,
+                "</tr>"
+            ].join("");
         }).join("");
-        return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>InfoDex Export</title>
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; padding: 24px; color: #111827; }
-    h1 { margin-bottom: 4px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 12px; vertical-align: top; }
-    th { background: #f3f4f6; text-align: left; }
-    .meta { color: #6b7280; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <h1>InfoDex Export</h1>
-  <div class="meta">Generated: ${new Date().toLocaleString()}</div>
-  <h2>Indexes</h2>
-  <ul>
-    ${state.dexes.map(d => `<li>${safeString(d.name, "Index")} (${safeString(d.type, "")}) — ${safeNumber(d.xp, 0)} pts</li>`).join("")}
-  </ul>
-  <h2>Timeline</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Time</th>
-        <th>Index</th>
-        <th>Type</th>
-        <th>Hours</th>
-        <th>Points</th>
-        <th>Details</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rows || ""}
-    </tbody>
-  </table>
-</body>
-</html>`;
+        const indexLines = state.dexes.map(d => (
+            `<li>${safeString(d.name, "Index")} (${safeString(d.type, "")}) — ${safeNumber(d.xp, 0)} pts</li>`
+        )).join("");
+        return [
+            "<!DOCTYPE html>",
+            "<html>",
+            "<head>",
+            '  <meta charset="UTF-8" />',
+            "  <title>InfoDex Export</title>",
+            "  <style>",
+            "    body { font-family: system-ui, -apple-system, sans-serif; padding: 24px; color: #111827; }",
+            "    h1 { margin-bottom: 4px; }",
+            "    table { width: 100%; border-collapse: collapse; margin-top: 16px; }",
+            "    th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 12px; vertical-align: top; }",
+            "    th { background: #f3f4f6; text-align: left; }",
+            "    .meta { color: #6b7280; font-size: 12px; }",
+            "  </style>",
+            "</head>",
+            "<body>",
+            "  <h1>InfoDex Export</h1>",
+            `  <div class=\"meta\">Generated: ${new Date().toLocaleString()}</div>`,
+            "  <h2>Indexes</h2>",
+            `  <ul>${indexLines}</ul>`,
+            "  <h2>Timeline</h2>",
+            "  <table>",
+            "    <thead>",
+            "      <tr>",
+            "        <th>Time</th>",
+            "        <th>Index</th>",
+            "        <th>Type</th>",
+            "        <th>Hours</th>",
+            "        <th>Points</th>",
+            "        <th>Details</th>",
+            "      </tr>",
+            "    </thead>",
+            `    <tbody>${rows || ""}</tbody>`,
+            "  </table>",
+            "</body>",
+            "</html>"
+        ].join("\n");
     }
     function exportNote() {
         const content = buildExportText();
